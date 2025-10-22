@@ -1,0 +1,68 @@
+---
+# Quick playbook to check system status
+# Use this to verify everything is working
+
+- name: Check VM host status
+  hosts: vm_hosts
+  gather_facts: yes
+
+  tasks:
+    - name: Check ZFS pool status
+      ansible.builtin.command: zpool status
+      register: zpool_status
+      changed_when: false
+      failed_when: false
+
+    - name: Display ZFS status
+      ansible.builtin.debug:
+        var: zpool_status.stdout_lines
+      when: zpool_status.rc == 0
+
+    - name: Check libvirt pools
+      ansible.builtin.command: virsh pool-list --all
+      register: virsh_pools
+      changed_when: false
+      failed_when: false
+
+    - name: Display libvirt pools
+      ansible.builtin.debug:
+        var: virsh_pools.stdout_lines
+      when: virsh_pools.rc == 0
+
+    - name: Check network bridges
+      ansible.builtin.command: ip -br link show type bridge
+      register: bridges
+      changed_when: false
+
+    - name: Display bridges
+      ansible.builtin.debug:
+        var: bridges.stdout_lines
+
+    - name: Check VLAN interfaces
+      ansible.builtin.command: ip -d link show type vlan
+      register: vlans
+      changed_when: false
+
+    - name: Display VLANs
+      ansible.builtin.debug:
+        var: vlans.stdout_lines
+
+    - name: Check systemd-networkd status
+      ansible.builtin.command: networkctl status
+      register: networkctl
+      changed_when: false
+      failed_when: false
+
+    - name: Display networkctl status
+      ansible.builtin.debug:
+        var: networkctl.stdout_lines
+      when: networkctl.rc == 0
+
+    - name: Check cockpit status
+      ansible.builtin.systemd:
+        name: cockpit.socket
+      register: cockpit_status
+
+    - name: Display cockpit status
+      ansible.builtin.debug:
+        msg: "Cockpit is {{ cockpit_status.status.ActiveState }}"

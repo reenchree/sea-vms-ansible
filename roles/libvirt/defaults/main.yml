@@ -1,0 +1,16 @@
+---
+# Libvirt and KVM packages
+libvirt_packages:
+  - qemu-kvm
+  - qemu-system
+  - qemu-utils
+  - libvirt-daemon-system
+  - libvirt-clients
+  - virtinst
+  - bridge-utils
+  - virt-manager
+  - ovmf  # UEFI firmware for VMs
+
+# Storage pool configuration
+# libvirt_storage_pool_path: /vmpool (from inventory)
+libvirt_storage_pool_name: default

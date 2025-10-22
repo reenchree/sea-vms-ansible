@@ -1,0 +1,27 @@
+---
+vm_hosts:
+  hosts:
+    pegasus:
+      ansible_host: 192.168.0.253
+
+  vars:
+    ansible_port: 22
+    ansible_user: pi
+
+    # ZFS configuration
+    zfs_pool_name: vmpool
+    zfs_pool_type: mirror
+    zfs_pool_devices:
+      - /dev/sda
+      - /dev/sdb
+
+    # Network configuration
+    # VLAN 50 for services (192.168.50.0/24)
+    # Trunk port on enp4s0 carries all VLANs
+    primary_interface: enp4s0
+    vlan_id: 50
+    vlan_bridge_name: br-vlan50
+    default_bridge_name: br0
+
+    # Libvirt configuration
+    libvirt_storage_pool_path: /vmpool

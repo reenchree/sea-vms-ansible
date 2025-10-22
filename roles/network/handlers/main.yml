@@ -1,0 +1,9 @@
+---
+- name: restart networkd
+  ansible.builtin.systemd:
+    name: systemd-networkd
+    state: restarted
+
+- name: reboot system
+  ansible.builtin.reboot:
+    reboot_timeout: 300

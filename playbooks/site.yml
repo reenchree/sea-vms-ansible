@@ -1,0 +1,40 @@
+---
+# Main playbook to configure VM host from scratch
+# This sets up: ZFS, libvirt/KVM, networking, and cockpit
+
+- name: Configure VM host
+  hosts: vm_hosts
+  gather_facts: yes
+
+  roles:
+    - role: prereq
+      tags: ['prereq', 'packages']
+
+    - role: zfs
+      tags: ['zfs', 'storage']
+
+    # Note: Network should be tested separately first!
+    # Use playbooks/network-only.yml for initial network setup
+    - role: network
+      tags: ['network', 'never']  # 'never' tag prevents accidental runs
+
+    - role: libvirt
+      tags: ['libvirt', 'kvm', 'virt']
+
+    - role: cockpit
+      tags: ['cockpit', 'webui']
+
+  post_tasks:
+    - name: Display summary
+      ansible.builtin.debug:
+        msg:
+          - "============================================"
+          - "VM Host Configuration Complete!"
+          - "============================================"
+          - "Cockpit Web UI: https://{{ ansible_host }}:9090"
+          - "ZFS Pool: {{ zfs_pool_name }} ({{ zfs_pool_type }})"
+          - "Libvirt Storage: {{ libvirt_storage_pool_path }}"
+          - "VM Network Bridge (VLAN 50): {{ vlan_bridge_name }}"
+          - "Host Network Bridge (untagged): {{ default_bridge_name }}"
+          - "============================================"
+      tags: ['always']

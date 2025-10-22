@@ -1,0 +1,69 @@
+---
+- name: Install libvirt and KVM packages
+  ansible.builtin.apt:
+    name: "{{ libvirt_packages }}"
+    state: present
+    update_cache: yes
+
+- name: Ensure libvirtd service is started and enabled
+  ansible.builtin.systemd:
+    name: libvirtd
+    state: started
+    enabled: yes
+
+- name: Add user to libvirt group
+  ansible.builtin.user:
+    name: "{{ ansible_user }}"
+    groups: libvirt,kvm
+    append: yes
+
+- name: Check if default storage pool exists
+  ansible.builtin.command: virsh pool-list --all --name
+  register: pool_list
+  changed_when: false
+
+- name: Remove existing default pool if it exists
+  ansible.builtin.command: virsh pool-destroy default
+  when: "'default' in pool_list.stdout_lines"
+  failed_when: false
+
+- name: Undefine existing default pool
+  ansible.builtin.command: virsh pool-undefine default
+  when: "'default' in pool_list.stdout_lines"
+  failed_when: false
+
+- name: Create storage pool directory on ZFS
+  ansible.builtin.file:
+    path: "{{ libvirt_storage_pool_path }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0711'
+
+- name: Define libvirt storage pool on ZFS
+  ansible.builtin.command: >
+    virsh pool-define-as
+    {{ libvirt_storage_pool_name }}
+    dir
+    --target {{ libvirt_storage_pool_path }}
+  when: "'default' not in pool_list.stdout_lines"
+
+- name: Build storage pool
+  ansible.builtin.command: virsh pool-build {{ libvirt_storage_pool_name }}
+  when: "'default' not in pool_list.stdout_lines"
+
+- name: Start storage pool
+  ansible.builtin.command: virsh pool-start {{ libvirt_storage_pool_name }}
+  when: "'default' not in pool_list.stdout_lines"
+
+- name: Set storage pool to autostart
+  ansible.builtin.command: virsh pool-autostart {{ libvirt_storage_pool_name }}
+
+- name: Get libvirt version
+  ansible.builtin.command: virsh version
+  register: virsh_version
+  changed_when: false
+
+- name: Display libvirt version
+  ansible.builtin.debug:
+    var: virsh_version.stdout_lines

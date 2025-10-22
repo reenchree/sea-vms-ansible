@@ -1,0 +1,6 @@
+---
+# Network configuration (from inventory)
+# primary_interface: enp4s0
+# vlan_id: 50
+# vlan_bridge_name: br-vlan50
+# default_bridge_name: br0

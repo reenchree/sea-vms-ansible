@@ -1,0 +1,58 @@
+---
+# WARNING: This playbook changes network configuration!
+# You may lose SSH connectivity if something goes wrong.
+# Have physical/console access ready before running.
+
+- name: Configure networking with systemd-networkd
+  hosts: vm_hosts
+  gather_facts: yes
+
+  tasks:
+    - name: Backup current network configuration
+      ansible.builtin.copy:
+        src: /etc/network/interfaces
+        dest: /etc/network/interfaces.backup
+        remote_src: yes
+        force: no
+
+    - name: Display warning
+      ansible.builtin.pause:
+        prompt: |
+          ============================================
+          WARNING: About to change network configuration!
+
+          This will:
+          - Switch from ifupdown to systemd-networkd
+          - Create bridges br0 (untagged) and br-vlan50 (VLAN 50)
+          - Restart networking
+
+          Current IP: {{ ansible_host }}
+          Expected IP after change: Same (DHCP on br0)
+
+          Press Ctrl+C then 'A' to abort
+          Press ENTER to continue
+          ============================================
+
+    - name: Apply network role
+      ansible.builtin.include_role:
+        name: network
+
+    - name: Wait for system to come back online
+      ansible.builtin.wait_for_connection:
+        delay: 10
+        timeout: 120
+
+    - name: Test connectivity
+      ansible.builtin.ping:
+
+    - name: Display network status
+      ansible.builtin.command: ip -br addr
+      register: network_status
+
+    - name: Show current network configuration
+      ansible.builtin.debug:
+        var: network_status.stdout_lines
+
+    - name: Confirm success
+      ansible.builtin.debug:
+        msg: "Network configuration applied successfully! SSH is working on {{ ansible_host }}"

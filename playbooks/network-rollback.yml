@@ -1,0 +1,48 @@
+---
+# Emergency rollback to original ifupdown networking
+# Use this if systemd-networkd breaks connectivity
+
+- name: Rollback to ifupdown networking
+  hosts: vm_hosts
+  gather_facts: no
+
+  tasks:
+    - name: Stop systemd-networkd
+      ansible.builtin.systemd:
+        name: systemd-networkd
+        state: stopped
+        enabled: no
+      ignore_errors: yes
+
+    - name: Restore original interfaces file
+      ansible.builtin.copy:
+        src: /etc/network/interfaces.backup
+        dest: /etc/network/interfaces
+        remote_src: yes
+      ignore_errors: yes
+
+    - name: Enable networking service
+      ansible.builtin.systemd:
+        name: networking
+        enabled: yes
+
+    - name: Remove systemd-networkd configs
+      ansible.builtin.file:
+        path: /etc/systemd/network/
+        state: absent
+
+    - name: Recreate systemd network directory
+      ansible.builtin.file:
+        path: /etc/systemd/network/
+        state: directory
+
+    - name: Reboot to apply old config
+      ansible.builtin.reboot:
+        reboot_timeout: 300
+
+    - name: Test connectivity after rollback
+      ansible.builtin.ping:
+
+    - name: Display success
+      ansible.builtin.debug:
+        msg: "Rolled back to original networking configuration"

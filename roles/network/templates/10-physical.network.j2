@@ -1,0 +1,9 @@
+[Match]
+Name={{ primary_interface }}
+
+[Network]
+Bridge={{ default_bridge_name }}
+VLAN={{ primary_interface }}.{{ vlan_id }}
+
+[Link]
+RequiredForOnline=no

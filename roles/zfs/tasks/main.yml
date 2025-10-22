@@ -1,0 +1,41 @@
+---
+- name: Install ZFS packages
+  ansible.builtin.apt:
+    name: "{{ zfs_packages }}"
+    state: present
+    update_cache: yes
+
+- name: Load ZFS kernel module
+  community.general.modprobe:
+    name: zfs
+    state: present
+
+- name: Check if ZFS pool already exists
+  ansible.builtin.command: zpool list {{ zfs_pool_name }}
+  register: zpool_check
+  changed_when: false
+  failed_when: false
+
+- name: Create ZFS pool
+  ansible.builtin.command: >
+    zpool create -f
+    {{ zfs_pool_name }}
+    {{ zfs_pool_type }}
+    {{ zfs_pool_devices | join(' ') }}
+  when: zpool_check.rc != 0
+
+- name: Set ZFS pool properties
+  ansible.builtin.command: >
+    zfs set {{ item.key }}={{ item.value }}
+    {{ zfs_pool_name }}
+  loop: "{{ zfs_pool_properties | dict2items }}"
+  when: zpool_check.rc != 0
+
+- name: Get ZFS pool status
+  ansible.builtin.command: zpool status {{ zfs_pool_name }}
+  register: zpool_status
+  changed_when: false
+
+- name: Display ZFS pool status
+  ansible.builtin.debug:
+    var: zpool_status.stdout_lines

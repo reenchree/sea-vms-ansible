@@ -1,0 +1,10 @@
+---
+# Cockpit packages
+cockpit_packages:
+  - cockpit
+  - cockpit-machines
+  - cockpit-storaged
+  - cockpit-networkmanager
+  - cockpit-packagekit
+
+cockpit_port: 9090

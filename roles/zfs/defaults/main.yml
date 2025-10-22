@@ -1,0 +1,16 @@
+---
+# ZFS configuration
+zfs_packages:
+  - zfsutils-linux
+
+# Pool configuration (from inventory)
+# zfs_pool_name: vmpool
+# zfs_pool_type: mirror
+# zfs_pool_devices:
+#   - /dev/sda
+#   - /dev/sdb
+
+# ZFS properties
+zfs_pool_properties:
+  compression: lz4
+  atime: off
