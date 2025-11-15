@@ -40,3 +40,6 @@ vm_hosts:
     nut_client_type: secondary
     nut_client_state: started
     nut_client_enabled: true
+    nut_client_shutdowncmd: "/usr/local/bin/vm-host-shutdown"
+    nut_client_finaldelay: 10  # Final delay before host shutdown
+    nut_vm_shutdown_timeout: 300  # Max time to wait for VMs (5 minutes)

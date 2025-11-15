@@ -1,0 +1,14 @@
+---
+- name: Deploy VM host shutdown script for NUT
+  ansible.builtin.template:
+    src: vm-host-shutdown.sh.j2
+    dest: /usr/local/bin/vm-host-shutdown
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Verify virsh command is available
+  ansible.builtin.command: which virsh
+  register: virsh_check
+  changed_when: false
+  failed_when: virsh_check.rc != 0

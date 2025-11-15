@@ -3,4 +3,5 @@
   become: true
 
   roles:
+    - role: nut-shutdown
     - role: geerlingguy.nut_client

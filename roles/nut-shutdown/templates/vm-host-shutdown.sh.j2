@@ -1,0 +1,62 @@
+#!/bin/bash
+# NUT shutdown script - Gracefully shut down VMs before host shutdown
+# Deployed by Ansible - DO NOT EDIT MANUALLY
+
+set -e
+
+log_message() {
+    logger -t "nut-shutdown" "$1"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
+}
+
+log_message "Power failure detected - initiating graceful shutdown sequence"
+
+# Get list of running VMs
+running_vms=$(virsh list --name 2>/dev/null | grep -v '^$' || true)
+
+if [ -z "$running_vms" ]; then
+    log_message "No running VMs found"
+else
+    log_message "Found running VMs, initiating graceful shutdown"
+
+    # Send shutdown signal to all running VMs
+    for vm in $running_vms; do
+        log_message "Shutting down VM: $vm"
+        virsh shutdown "$vm" 2>&1 | logger -t "nut-shutdown"
+    done
+
+    # Wait for VMs to shut down (max {{ nut_vm_shutdown_timeout | default(300) }} seconds)
+    timeout={{ nut_vm_shutdown_timeout | default(300) }}
+    elapsed=0
+
+    while [ $elapsed -lt $timeout ]; do
+        running_count=$(virsh list --name 2>/dev/null | grep -v '^$' | wc -l)
+
+        if [ "$running_count" -eq 0 ]; then
+            log_message "All VMs shut down successfully after ${elapsed} seconds"
+            break
+        fi
+
+        log_message "Waiting for $running_count VM(s) to shut down... (${elapsed}s elapsed)"
+        sleep 5
+        elapsed=$((elapsed + 5))
+    done
+
+    # Force stop any remaining VMs
+    remaining_vms=$(virsh list --name 2>/dev/null | grep -v '^$' || true)
+    if [ -n "$remaining_vms" ]; then
+        log_message "WARNING: Forcing shutdown of remaining VMs after ${timeout}s timeout"
+        for vm in $remaining_vms; do
+            log_message "Force stopping VM: $vm"
+            virsh destroy "$vm" 2>&1 | logger -t "nut-shutdown"
+        done
+    fi
+fi
+
+# Final delay before host shutdown
+log_message "VM shutdown complete, waiting {{ nut_client_finaldelay | default(10) }} seconds before host shutdown"
+sleep {{ nut_client_finaldelay | default(10) }}
+
+# Shutdown the host
+log_message "Initiating host shutdown"
+/sbin/shutdown -h now "NUT: Power failure - UPS battery low"
