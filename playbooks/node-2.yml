@@ -1,0 +1,88 @@
+---
+# Playbook to create node-2 VM and install Wings only
+#
+# This playbook:
+# 1. Creates a VM on the pegasus host
+# 2. Installs Pterodactyl Wings (game server daemon)
+#
+# Usage:
+#   ansible-playbook -i inventory.yml playbooks/node-2.yml
+
+- name: Create node-2 VM
+  hosts: pegasus
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Get VM configuration from node-2 host
+      ansible.builtin.set_fact:
+        vm_config: "{{ hostvars['node-2'] }}"
+
+    - name: Create node-2 VM
+      ansible.builtin.include_role:
+        name: create-vm
+      vars:
+        vm_name: "{{ vm_config.vm_name }}"
+        vm_vcpus: "{{ vm_config.vm_vcpus }}"
+        vm_ram_mb: "{{ vm_config.vm_ram_mb }}"
+        vm_disk_gb: "{{ vm_config.vm_disk_gb }}"
+        vm_bridge: "{{ vm_config.vm_bridge }}"
+        vm_ip: "{{ vm_config.vm_ip }}"
+        vm_gateway: "{{ vm_config.vm_gateway }}"
+        vm_netmask: "{{ vm_config.vm_netmask }}"
+        vm_dns: "{{ vm_config.vm_dns }}"
+        vm_disk_path: "{{ vm_config.vm_disk_path }}"
+        vm_os_variant: "{{ vm_config.vm_os_variant }}"
+        vm_user: "{{ vm_config.vm_user }}"
+        vm_ssh_authorized_keys: "{{ vm_config.vm_ssh_authorized_keys }}"
+
+    - name: Wait for VM to be fully ready
+      ansible.builtin.pause:
+        seconds: 30
+        prompt: "Waiting for VM to complete cloud-init setup..."
+
+- name: Install Pterodactyl Wings on node-2
+  hosts: node-2
+  become: true
+  gather_facts: true
+
+  roles:
+    - role: maxhoesel.pterodactyl.pterodactyl_wings
+
+- name: Install Apache and configure reverse proxy for Wings on node-2
+  hosts: node-2
+  become: true
+  gather_facts: true
+
+  pre_tasks:
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Install Apache2
+      ansible.builtin.apt:
+        name:
+          - apache2
+        state: present
+
+    - name: Start and enable Apache
+      ansible.builtin.systemd:
+        name: apache2
+        state: started
+        enabled: true
+
+  roles:
+    - role: pterodactyl-apache-proxy
+
+  post_tasks:
+    - name: Display setup information
+      ansible.builtin.debug:
+        msg:
+          - "Node-2 installation complete!"
+          - "Wings FQDN: {{ pterodactyl_wings_fqdn }}"
+          - "Wings API: https://{{ pterodactyl_wings_fqdn }}:8080"
+          - "Next steps:"
+          - "1. Configure this node in the Pterodactyl Panel admin interface"
+          - "2. Update DNS to point {{ pterodactyl_wings_fqdn }} to the ingress IP"
+          - "3. Deploy the ingress configuration for node-2"
