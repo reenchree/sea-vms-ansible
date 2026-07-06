@@ -1,192 +1,61 @@
-# sea-vms-ansible
+# sea-pegasus-ansible
 
-Ansible project to configure a Debian-based VM host with libvirt/KVM, ZFS storage, and VLAN networking.
+Ansible for **pegasus** (`192.168.0.253`), a Debian 13 (trixie) KVM/libvirt
+host that runs Pterodactyl game-server VMs. Manages ZFS storage, VLAN-50
+`systemd-networkd` bridging, cloud-init VM provisioning, and the Pterodactyl
+Panel + Wings stack inside guest VMs.
 
-## Overview
+See [CLAUDE.md](CLAUDE.md) for the authoritative, in-depth reference.
 
-This playbook sets up a complete VM host environment on Debian with:
-- **ZFS** mirror pool on 2x Samsung EVO 500GB drives
-- **libvirt/KVM** for virtualization
-- **Cockpit** web UI with VM management
-- **systemd-networkd** with VLAN 50 bridge for VM networking
+## Status
 
-## Prerequisites
+Pegasus is **powered off since ~2026-05** to save power while no game servers
+are in use. Its Prometheus scrape targets in `sea-k8s-flux` are commented out,
+and the weekly Semaphore apt-upgrade against it fails with `No route to host`
+(expected). Bringing it back requires physical power-on / WoL — nothing here
+automates that.
 
-- Debian 13 (trixie) installed on target host
-- SSH access with passwordless sudo
-- Two identical drives for ZFS pool
-- Network interface configured as trunk port (carrying all VLANs)
+## Host
 
-## Initial Setup
+- **pegasus**, Debian 13 trixie, SSH `pi@192.168.0.253`
+- **Storage**: ZFS **RAIDZ1** pool `vmpool` on 4x SATA disks (`/dev/sd[a-d]`),
+  mounted at `/vmpool` and used as the libvirt storage pool path.
+- **Network**: single trunk port `enp4s0` carrying VLAN 1 (untagged mgmt) +
+  VLAN 50 (services/VMs), bridged as `br0` + `br-vlan50`.
 
-1. Copy the sample inventory:
-   ```bash
-   cp inventory-sample.yml inventory.yml
-   ```
+## Inventory & secrets
 
-2. Edit `inventory.yml` with your specific configuration:
-   - Host IP address
-   - ZFS device paths
-   - Network interface name
-   - VLAN ID
+`inventory.yml` **is committed to git** (there is no sample file). It holds
+**no secrets** — `nut_client_password`, `pterodactyl_panel_db_password`,
+`pterodactyl_panel_app_key`, `pterodactyl_panel_hashids_salt`, and
+`mysql_root_password` are injected at runtime via the Semaphore "Default"
+environment (ID 4). Production runs go through Semaphore project
+**"Sea Pegasus VM Host"** (ID 2).
 
-3. Test ansible connectivity:
-   ```bash
-   ansible vm_hosts -m ping
-   ```
-
-## Deployment Steps
-
-### Step 1: Prerequisites and ZFS
-
-Run everything except networking:
+## Usage
 
 ```bash
-ansible-playbook playbooks/site.yml --skip-tags network
+ansible-galaxy install -r requirements.yml
+ansible-galaxy collection install -r requirements.yml
+
+ansible vm_hosts -m ping                       # connectivity
+ansible-playbook playbooks/site.yml            # full host provisioning
+ansible-playbook playbooks/check-system.yml    # health check
 ```
 
-This installs:
-- System packages
-- ZFS and creates the mirror pool
-- libvirt/KVM
-- Cockpit web UI
+The `network` role is `never`-tagged in `site.yml`; apply it explicitly with
+`playbooks/network-only.yml` **only with console access** (the
+`systemd-networkd` cutover can drop SSH). `playbooks/network-rollback.yml`
+reverts to ifupdown in an emergency.
 
-Verify with:
-```bash
-ansible-playbook playbooks/check-system.yml
-```
+Other key playbooks: `pterodactyl.yml` / `node-2.yml` (create VMs),
+`pterodactyl-backup.yml` (DB + `.env` backup), `pterodactyl-update.yml`
+(Panel + Wings update), `apt-upgrade.yml` (host, notify-only),
+`apt-upgrade-vms.yml` (VMs, serial reboot), `nut-client.yml` (UPS shutdown).
 
-### Step 2: Network Configuration (DANGEROUS!)
+## Roles
 
-**⚠️ WARNING**: Network changes can break SSH connectivity!
-
-The network role switches from ifupdown to systemd-networkd and creates:
-- `br0` - Bridge on untagged VLAN (host management, DHCP)
-- `br-vlan50` - Bridge on VLAN 50 (for VMs)
-
-**Before running:**
-- Ensure you have physical/console access to the host
-- Verify your switch port is configured as trunk with native VLAN 1
-
-**To apply network changes:**
-
-```bash
-ansible-playbook playbooks/network-only.yml
-```
-
-This playbook will:
-1. Backup current network config
-2. Show a warning and wait for confirmation
-3. Apply systemd-networkd configuration
-4. Restart networking
-5. Test connectivity
-
-**If something goes wrong:**
-
-You have three options:
-
-1. **Via console/physical access**: Manually revert `/etc/network/interfaces`
-2. **If SSH still works**: Run the rollback playbook
-   ```bash
-   ansible-playbook playbooks/network-rollback.yml
-   ```
-3. **Check IP address changed**: Update inventory.yml and retry
-
-### Step 3: Verify Everything
-
-```bash
-ansible-playbook playbooks/check-system.yml
-```
-
-Check:
-- ZFS pool is healthy
-- Libvirt storage pool exists
-- Bridges `br0` and `br-vlan50` are up
-- VLAN interface exists
-
-## Accessing the System
-
-- **Cockpit Web UI**: `https://192.168.0.253:9090`
-- **SSH**: `ssh pi@192.168.0.253`
-- **VMs**: Connect to `br-vlan50` bridge to get VLAN 50 networking
-
-## VM Networking
-
-When creating VMs:
-- **Network**: Use bridge `br-vlan50`
-- **DHCP**: VMs will get IPs from router on 192.168.50.0/24
-- **VLAN**: Traffic is tagged with VLAN 50
-
-Optional: VMs can also use `br0` for untagged networking.
-
-## Common Operations
-
-### Check ZFS pool status
-```bash
-ssh 192.168.0.253 "zpool status vmpool"
-```
-
-### List VMs
-```bash
-ssh 192.168.0.253 "virsh list --all"
-```
-
-### Check network configuration
-```bash
-ssh 192.168.0.253 "networkctl status"
-```
-
-### Check bridges
-```bash
-ssh 192.168.0.253 "ip -br link show type bridge"
-```
-
-## Project Structure
-
-```
-.
-├── ansible.cfg           # Ansible configuration
-├── inventory.yml         # Host inventory (gitignored)
-├── inventory-sample.yml  # Sample inventory
-├── playbooks/
-│   ├── site.yml          # Main playbook
-│   ├── network-only.yml  # Network changes only
-│   ├── network-rollback.yml # Emergency rollback
-│   └── check-system.yml  # System status check
-└── roles/
-    ├── prereq/           # System prerequisites
-    ├── zfs/              # ZFS pool setup
-    ├── network/          # systemd-networkd config
-    ├── libvirt/          # KVM/libvirt setup
-    └── cockpit/          # Cockpit web UI
-```
-
-## Safety Notes
-
-- **Secrets**: `inventory.yml` is gitignored to prevent committing credentials
-- **ZFS**: Playbook won't recreate pool if it already exists
-- **Network**: Use `network-only.yml` playbook separately first
-- **Idempotent**: Safe to re-run playbooks multiple times
-
-## Troubleshooting
-
-### Lost SSH after network change
-- Access via console/physical connection
-- Check `/etc/systemd/network/` configs
-- Revert to backup: `cp /etc/network/interfaces.backup /etc/network/interfaces`
-- Enable ifupdown: `systemctl enable networking && systemctl disable systemd-networkd`
-- Reboot
-
-### ZFS pool issues
-- Check status: `zpool status`
-- Check devices: `lsblk`
-- Import manually: `zpool import vmpool`
-
-### Libvirt issues
-- Check service: `systemctl status libvirtd`
-- Check pools: `virsh pool-list --all`
-- Check networks: `virsh net-list --all`
-
-## License
-
-MIT
+Local: `prereq`, `zfs`, `network`, `libvirt`, `cockpit`, `create-vm`,
+`nut-shutdown`, `pterodactyl-apache-proxy`. Shared:
+`reenchree.common.{node_exporter,zfs_exporter,smartctl_exporter}`. External:
+`maxhoesel.pterodactyl` (Panel + Wings), `geerlingguy.nut_client`.
