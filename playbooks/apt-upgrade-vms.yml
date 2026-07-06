@@ -1,0 +1,23 @@
+---
+- name: Apt upgrade VMs
+  hosts: vms
+  serial: 1
+  tasks:
+    - name: Update apt cache and dist-upgrade
+      ansible.builtin.apt:
+        upgrade: dist
+        update_cache: true
+        cache_valid_time: 3600
+        autoremove: true
+
+    - name: Check if reboot is required
+      ansible.builtin.stat:
+        path: /var/run/reboot-required
+      register: reboot_flag
+      changed_when: reboot_flag.stat.exists
+
+    - name: Reboot if required
+      ansible.builtin.reboot:
+        reboot_timeout: 300
+        test_command: systemctl is-active wings
+      when: reboot_flag.stat.exists
