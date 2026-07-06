@@ -1,0 +1,61 @@
+---
+- name: Backup Pterodactyl database and config
+  hosts: pterodactyl
+  vars:
+    backup_dir: /var/backups/pterodactyl
+    backup_retention_days: 30
+    panel_dir: /var/www/pterodactyl
+  tasks:
+    - name: Ensure backup directory exists
+      ansible.builtin.file:
+        path: "{{ backup_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0750"
+
+    - name: Set timestamp fact
+      ansible.builtin.set_fact:
+        backup_timestamp: "{{ ansible_date_time.iso8601_basic_short }}"
+
+    - name: Dump MariaDB panel database
+      community.mysql.mysql_db:
+        name: "{{ pterodactyl_panel_db_name }}"
+        login_user: "{{ pterodactyl_panel_db_user }}"
+        login_password: "{{ pterodactyl_panel_db_password }}"
+        login_host: "{{ pterodactyl_panel_db_host }}"
+        state: dump
+        target: "{{ backup_dir }}/panel-{{ backup_timestamp }}.sql.gz"
+
+    - name: Backup Panel .env file
+      ansible.builtin.copy:
+        src: "{{ panel_dir }}/.env"
+        dest: "{{ backup_dir }}/panel-env-{{ backup_timestamp }}"
+        remote_src: true
+        mode: "0640"
+
+    - name: Prune backups older than {{ backup_retention_days }} days
+      ansible.builtin.find:
+        paths: "{{ backup_dir }}"
+        age: "{{ backup_retention_days }}d"
+      register: old_backups
+
+    - name: Remove old backup files
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ old_backups.files }}"
+      when: old_backups.files | length > 0
+
+    - name: List current backups
+      ansible.builtin.find:
+        paths: "{{ backup_dir }}"
+        file_type: file
+      register: current_backups
+
+    - name: Show backup summary
+      ansible.builtin.debug:
+        msg: "{{ item.path | basename }} ({{ (item.size / 1024 / 1024) | round(2) }} MB)"
+      loop: "{{ current_backups.files | sort(attribute='mtime') | reverse }}"
+      loop_control:
+        label: "{{ item.path | basename }}"

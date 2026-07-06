@@ -1,0 +1,87 @@
+---
+- name: Update Pterodactyl Panel
+  hosts: pterodactyl
+  vars:
+    panel_dir: /var/www/pterodactyl
+  tasks:
+    - name: Enable maintenance mode
+      ansible.builtin.command:
+        cmd: php artisan down
+        chdir: "{{ panel_dir }}"
+      changed_when: true
+
+    - name: Download latest Panel release
+      ansible.builtin.unarchive:
+        src: https://github.com/pterodactyl/panel/releases/latest/download/panel.tar.gz
+        dest: "{{ panel_dir }}"
+        remote_src: true
+        owner: www-data
+        group: www-data
+
+    - name: Install Composer dependencies
+      ansible.builtin.command:
+        cmd: composer install --no-dev --optimize-autoloader --no-interaction
+        chdir: "{{ panel_dir }}"
+      changed_when: true
+      environment:
+        COMPOSER_ALLOW_SUPERUSER: "1"
+
+    - name: Run database migrations
+      ansible.builtin.command:
+        cmd: php artisan migrate --seed --force
+        chdir: "{{ panel_dir }}"
+      changed_when: true
+
+    - name: Clear cached views and config
+      ansible.builtin.command:
+        cmd: "php artisan {{ item }}"
+        chdir: "{{ panel_dir }}"
+      loop:
+        - view:clear
+        - config:clear
+      changed_when: true
+
+    - name: Set file permissions
+      ansible.builtin.file:
+        path: "{{ panel_dir }}"
+        owner: www-data
+        group: www-data
+        recurse: true
+
+    - name: Restart queue workers
+      ansible.builtin.command:
+        cmd: php artisan queue:restart
+        chdir: "{{ panel_dir }}"
+      changed_when: true
+
+    - name: Disable maintenance mode
+      ansible.builtin.command:
+        cmd: php artisan up
+        chdir: "{{ panel_dir }}"
+      changed_when: true
+
+- name: Update Pterodactyl Wings
+  hosts: vms
+  serial: 1
+  tasks:
+    - name: Download latest Wings binary
+      ansible.builtin.get_url:
+        url: https://github.com/pterodactyl/wings/releases/latest/download/wings_linux_amd64
+        dest: /usr/local/bin/wings
+        mode: "0755"
+        owner: root
+        group: root
+        force: true
+      notify: restart wings
+
+  handlers:
+    - name: restart wings
+      ansible.builtin.systemd:
+        name: wings
+        state: restarted
+
+    - name: Verify Wings is running
+      ansible.builtin.command:
+        cmd: systemctl is-active wings
+      changed_when: false
+      listen: restart wings
