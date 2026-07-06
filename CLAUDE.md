@@ -73,7 +73,7 @@ ssh -i ~/.ssh/id_ansible pi@192.168.0.253 'lscpu; free -h; lsblk; sudo zpool sta
 | `reenchree.common.zfs_exporter` | shared collection | zfs_exporter :9134 |
 | `reenchree.common.smartctl_exporter` | shared collection | smartctl_exporter :9633 |
 | `maxhoesel.pterodactyl.pterodactyl_panel` / `_wings` | external collection | Panel + Wings install inside the VMs |
-| `geerlingguy.nut_client` | GitHub master (vendored) | NUT client daemon |
+| `geerlingguy.nut_client` | GitHub tag 2.0.0 (vendored) | NUT client daemon |
 
 ## Architecture
 
@@ -101,7 +101,7 @@ External access: Traefik in `sea-k8s-flux` fronts the Panel at `https://pterodac
 
 ## Cross-repo links
 
-- **`../reenchree-ansible-common`** — shared collection providing `node_exporter`, `zfs_exporter`, `smartctl_exporter` roles. `requirements.yml` pins it to commit `2a19d53c9fc6a345628a748e49329fac378583d5`. The collection also has `base`, `zfs`, `sanoid`, `nut_server` roles that pegasus deliberately does **not** use (pegasus keeps its own local `zfs` role and has no sanoid snapshots — VMs are stateless game-server hosts, no precious data to snapshot).
+- **`../reenchree-ansible-common`** — shared collection providing `node_exporter`, `zfs_exporter`, `smartctl_exporter` roles. `requirements.yml` pins it to tag `v1.8.0`. The collection also has `base`, `zfs`, `sanoid`, `nut_server` roles that pegasus deliberately does **not** use (pegasus keeps its own local `zfs` role and has no sanoid snapshots — VMs are stateless game-server hosts, no precious data to snapshot).
 - **`../sea-k8s-flux`** — `infra/kube-prom-stack/helm-release.yaml` defines the bare-metal scrape jobs; pegasus targets are currently commented out, see "Status note" above. If you add a new exporter port on pegasus, add a matching scrape entry there.
 - **`../sea-hercules-ansible`** — sibling repo for the other bare-metal host. Same shared-collection pattern but uses many more shared roles and runs much more on the host directly (NAS, Garage S3, FreePBX VM, Semaphore VM).
 
@@ -249,9 +249,9 @@ curl -H "$H" -X POST https://semaphore.reenchree.dev/api/project/2/templates \
 |---|---|---|
 | `community.general` | `>=7.0.0` | General modules (`apache2_module`, `modprobe`, …) |
 | `community.libvirt` | `>=1.0.0` | `virt`, `virt_pool`, `virt_net` modules used by `create-vm` and `nut-shutdown` |
-| `maxhoesel.pterodactyl` | unpinned | Pterodactyl Panel + Wings roles, installed inside the VMs |
-| `reenchree.common` | git **`2a19d53c9fc6a345628a748e49329fac378583d5`** | Shared monitoring exporter roles (see `../reenchree-ansible-common`). Pinned — bump deliberately. |
-| `geerlingguy.nut_client` | git `master` | NUT client (vendored under `roles/geerlingguy.nut_client/`, gitignored at `roles/geerlingguy.*/`) |
+| `maxhoesel.pterodactyl` | `5.0.0` | Pterodactyl Panel + Wings roles, installed inside the VMs |
+| `reenchree.common` | git tag **`v1.8.0`** | Shared monitoring exporter roles (see `../reenchree-ansible-common`). Pinned — bump deliberately. |
+| `geerlingguy.nut_client` | git tag `2.0.0` | NUT client (vendored under `roles/geerlingguy.nut_client/`, gitignored at `roles/geerlingguy.*/`) |
 
 ## Development Principles
 
