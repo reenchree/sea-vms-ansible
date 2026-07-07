@@ -10,7 +10,7 @@ collections:
     version: 5.0.0
   - name: https://github.com/reenchree/reenchree-ansible-common.git
     type: git
-    version: v1.8.0
+    version: v1.8.1
 
 roles:
   - name: geerlingguy.nut_client
